@@ -22,6 +22,10 @@ namespace KidzDev.Unity.ScrollSnap
         [SerializeField] private AnimationCurve  snapCurve     =
             AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
+        [Header("Peek")]
+        [Tooltip("Pixels of the adjacent item visible on each side. Requires SnapAlignment.Center. Automatically sets content GridLayoutGroup padding.")]
+        [SerializeField] [Min(0f)] private float peekAmount = 0f;
+
         [Header("Focus Effects")]
         [SerializeField] private bool  enableFocusEffects = false;
         [SerializeField] private float focusRange         = 1f; // in items, 1 = one cell away = 0 influence
@@ -47,8 +51,12 @@ namespace KidzDev.Unity.ScrollSnap
         private float _snapStartedAt;
         private Vector2 _snapFrom;
         private Vector2 _snapTarget;
-        private bool  _dragAccelTriggered;
-        private bool  _focusEffectDirty;
+        private bool    _dragAccelTriggered;
+        private bool    _focusEffectDirty;
+
+        // Seamless infinite loop support
+        private float   _loopCycleDelta;  // content-space distance for one full loop cycle (active axis)
+        private Vector2 _wrapOffset;      // additive correction applied to snapTarget when crossing an edge
 
         private readonly List<RectTransform>     _items      = new();
         private readonly List<IScrollSnapItem>   _effects    = new();
@@ -66,11 +74,28 @@ namespace KidzDev.Unity.ScrollSnap
 
         public void SnapToPage(int page)
         {
-            page = ClampOrWrap(page);
+            Vector2 wrapOffset = Vector2.zero;
+            if (wrapAround && PageCount > 1)
+            {
+                int wrapped = ((page % PageCount) + PageCount) % PageCount;
+                if (page != wrapped && _loopCycleDelta != 0f)
+                {
+                    // Crossing an edge: animate through the virtual position, then teleport.
+                    float corr = page >= PageCount ? _loopCycleDelta : -_loopCycleDelta;
+                    wrapOffset = axis == ScrollSnapAxis.Horizontal
+                        ? new Vector2(corr, 0f)
+                        : new Vector2(0f, corr);
+                }
+                page = wrapped;
+            }
+            else
+            {
+                page = Mathf.Clamp(page, 0, Mathf.Max(0, PageCount - 1));
+            }
             _currentPage = page;
             OnPageChanged?.Invoke(_currentPage);
             NotifyIndicators();
-            BeginSnap();
+            BeginSnap(wrapOffset);
         }
 
         public void JumpToPage(int page)
@@ -93,7 +118,11 @@ namespace KidzDev.Unity.ScrollSnap
 
         public void Rebuild()
         {
+            ApplyPeekPadding();
+            Canvas.ForceUpdateCanvases();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
             RebuildItemCache();
+            _loopCycleDelta = ComputeLoopCycleDelta();
             _currentPage = Mathf.Clamp(_currentPage, 0, Mathf.Max(0, PageCount - 1));
             JumpToPage(_currentPage);
             foreach (var ind in _indicators) ind.Setup(PageCount);
@@ -126,12 +155,12 @@ namespace KidzDev.Unity.ScrollSnap
         protected override void Start()
         {
             base.Start();
-            // Force layout so rects are valid before we measure.
+            ApplyPeekPadding();
             Canvas.ForceUpdateCanvases();
             LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
             RebuildItemCache();
+            _loopCycleDelta = ComputeLoopCycleDelta();
             _currentPage = Mathf.Clamp(startPage, 0, Mathf.Max(0, PageCount - 1));
-            // Re-setup any indicators that registered before the item cache existed.
             foreach (var ind in _indicators) ind.Setup(PageCount);
             JumpToPage(_currentPage);
         }
@@ -151,7 +180,15 @@ namespace KidzDev.Unity.ScrollSnap
 
                 if (t >= 1f)
                 {
-                    _content.anchoredPosition   = _snapTarget;
+                    _content.anchoredPosition = _snapTarget;
+
+                    // Seamless loop: teleport content back to the actual item position.
+                    if (_wrapOffset != Vector2.zero)
+                    {
+                        _content.anchoredPosition -= _wrapOffset;
+                        _wrapOffset = Vector2.zero;
+                    }
+
                     _isSnapping                 = false;
                     _canvasGroup.blocksRaycasts = true;
                     DriveFocusEffects(force: true);
@@ -238,12 +275,44 @@ namespace KidzDev.Unity.ScrollSnap
         private Vector3 VpLocalCenter() =>
             new Vector3(_viewport.rect.center.x, _viewport.rect.center.y, 0f);
 
+        // ── Peek & loop helpers ───────────────────────────────────────────────
+
+        private void ApplyPeekPadding()
+        {
+            if (peekAmount <= 0f || _content == null) return;
+            var glg = _content.GetComponent<UnityEngine.UI.GridLayoutGroup>();
+            if (glg == null) return;
+            int p = Mathf.RoundToInt(peekAmount);
+            if (axis == ScrollSnapAxis.Horizontal)
+            {
+                glg.padding.left  = p;
+                glg.padding.right = p;
+            }
+            else
+            {
+                glg.padding.top    = p;
+                glg.padding.bottom = p;
+            }
+        }
+
+        // Content-position delta required to advance one full loop cycle.
+        // Measured from actual child positions so it handles peek padding, spacing, variable sizes.
+        private float ComputeLoopCycleDelta()
+        {
+            if (!wrapAround || _items.Count < 2) return 0f;
+            Vector2 p0 = MeasuredTargetPosition(0);
+            Vector2 p1 = MeasuredTargetPosition(1);
+            float step = axis == ScrollSnapAxis.Horizontal ? (p1.x - p0.x) : (p1.y - p0.y);
+            return step * _items.Count;
+        }
+
         // ── Snapping internals ────────────────────────────────────────────────
 
-        private void BeginSnap()
+        private void BeginSnap(Vector2 wrapOffset = default)
         {
+            _wrapOffset    = wrapOffset;
             _snapFrom      = _content.anchoredPosition;
-            _snapTarget    = MeasuredTargetPosition(_currentPage);
+            _snapTarget    = MeasuredTargetPosition(_currentPage) + _wrapOffset;
             _snapStartedAt = Time.time;
             _canvasGroup.blocksRaycasts = false;
             _isSnapping    = true;
@@ -342,14 +411,6 @@ namespace KidzDev.Unity.ScrollSnap
             }
             if (enableFocusEffects && _focusedPage < 0)
                 _focusedPage = _currentPage;
-        }
-
-        private int ClampOrWrap(int page)
-        {
-            int max = Mathf.Max(0, PageCount - 1);
-            if (wrapAround && PageCount > 1)
-                return ((page % PageCount) + PageCount) % PageCount;
-            return Mathf.Clamp(page, 0, max);
         }
 
         private float Axis(Vector2 v) =>
