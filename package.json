@@ -1,6 +1,6 @@
 {
   "name": "com.kidzdev.unity.scroll-snap",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "displayName": "KidzDev Unity Scroll Snap",
   "description": "ScrollRect-based snap pager for Unity uGUI — horizontal and vertical axes, dot indicators, number indicators, and prev/next navigation.",
   "unity": "6000.0",

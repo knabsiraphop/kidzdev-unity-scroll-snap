@@ -9,13 +9,13 @@ A lightweight `ScrollRect`-based snap pager for Unity uGUI — horizontal carous
 Add via **Package Manager → Add package from git URL**:
 
 ```
-https://github.com/knabsiraphop/kidzdev-unity-addressables-toolkit.git?path=Packages/com.kidzdev.unity.scroll-snap#v0.1.0
+https://github.com/knabsiraphop/kidzdev-unity-addressables-toolkit.git?path=Packages/com.kidzdev.unity.scroll-snap#v1.0.0
 ```
 
 Or add to `Packages/manifest.json`:
 
 ```json
-"com.kidzdev.unity.scroll-snap": "https://github.com/knabsiraphop/kidzdev-unity-addressables-toolkit.git?path=Packages/com.kidzdev.unity.scroll-snap#v0.1.0"
+"com.kidzdev.unity.scroll-snap": "https://github.com/knabsiraphop/kidzdev-unity-addressables-toolkit.git?path=Packages/com.kidzdev.unity.scroll-snap#v1.0.0"
 ```
 
 ## Demo
