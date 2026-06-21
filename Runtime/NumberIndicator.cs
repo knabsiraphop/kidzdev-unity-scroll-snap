@@ -12,14 +12,18 @@ namespace KidzDev.Unity.ScrollSnap
         private TextMeshProUGUI _text;
         private int _pageCount;
 
-        private void Awake() => _text = GetComponent<TextMeshProUGUI>();
+        private void Awake()
+        {
+            _text = GetComponent<TextMeshProUGUI>();
+            if (target == null) target = GetComponentInParent<ScrollSnap>();
+        }
 
-        private void Start()
+        private void OnEnable()
         {
             if (target != null) target.RegisterIndicator(this);
         }
 
-        private void OnDestroy()
+        private void OnDisable()
         {
             if (target != null) target.UnregisterIndicator(this);
         }

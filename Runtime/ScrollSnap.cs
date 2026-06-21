@@ -118,11 +118,7 @@ namespace KidzDev.Unity.ScrollSnap
 
         public void Rebuild()
         {
-            ApplyPeekPadding();
-            Canvas.ForceUpdateCanvases();
-            LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
-            RebuildItemCache();
-            _loopCycleDelta = ComputeLoopCycleDelta();
+            RebuildInternal();
             _currentPage = Mathf.Clamp(_currentPage, 0, Mathf.Max(0, PageCount - 1));
             JumpToPage(_currentPage);
             foreach (var ind in _indicators) ind.Setup(PageCount);
@@ -150,20 +146,32 @@ namespace KidzDev.Unity.ScrollSnap
             _viewport    = _scrollRect.viewport != null
                 ? _scrollRect.viewport
                 : (RectTransform)_scrollRect.transform;
+            SyncScrollRectAxis();
         }
 
         protected override void Start()
         {
             base.Start();
-            ApplyPeekPadding();
-            Canvas.ForceUpdateCanvases();
-            LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
-            RebuildItemCache();
-            _loopCycleDelta = ComputeLoopCycleDelta();
+            RebuildInternal();
             _currentPage = Mathf.Clamp(startPage, 0, Mathf.Max(0, PageCount - 1));
             foreach (var ind in _indicators) ind.Setup(PageCount);
             JumpToPage(_currentPage);
         }
+
+#if UNITY_EDITOR
+        protected override void OnValidate()
+        {
+            base.OnValidate();
+            var sr = GetComponent<ScrollRect>();
+            if (sr != null)
+            {
+                sr.horizontal = axis == ScrollSnapAxis.Horizontal;
+                sr.vertical   = axis == ScrollSnapAxis.Vertical;
+            }
+            if (peekAmount > 0f && alignment != SnapAlignment.Center)
+                Debug.LogWarning("[ScrollSnap] peekAmount > 0 only works with SnapAlignment.Center.", this);
+        }
+#endif
 
         private void LateUpdate()
         {
@@ -274,6 +282,25 @@ namespace KidzDev.Unity.ScrollSnap
 
         private Vector3 VpLocalCenter() =>
             new Vector3(_viewport.rect.center.x, _viewport.rect.center.y, 0f);
+
+        // ── Internal rebuild ──────────────────────────────────────────────────
+
+        private void RebuildInternal()
+        {
+            SyncScrollRectAxis();
+            ApplyPeekPadding();
+            Canvas.ForceUpdateCanvases();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
+            RebuildItemCache();
+            _loopCycleDelta = ComputeLoopCycleDelta();
+        }
+
+        private void SyncScrollRectAxis()
+        {
+            if (_scrollRect == null) return;
+            _scrollRect.horizontal = axis == ScrollSnapAxis.Horizontal;
+            _scrollRect.vertical   = axis == ScrollSnapAxis.Vertical;
+        }
 
         // ── Peek & loop helpers ───────────────────────────────────────────────
 

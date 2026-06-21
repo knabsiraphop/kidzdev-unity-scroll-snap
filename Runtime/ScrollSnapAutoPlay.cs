@@ -15,6 +15,7 @@ namespace KidzDev.Unity.ScrollSnap
 
         private void OnEnable()
         {
+            if (target == null) target = GetComponentInParent<ScrollSnap>();
             if (target == null) return;
             target.OnDragBegin    += OnDragBegin;
             target.OnSnapComplete += OnSnapComplete;

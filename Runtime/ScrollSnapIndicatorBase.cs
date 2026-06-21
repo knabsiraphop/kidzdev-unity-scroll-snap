@@ -38,6 +38,7 @@ namespace KidzDev.Unity.ScrollSnap
         {
             if (Application.isPlaying)
             {
+                if (target == null) target = GetComponentInParent<ScrollSnap>();
                 if (target != null) target.RegisterIndicator(this);
             }
             else
@@ -53,7 +54,11 @@ namespace KidzDev.Unity.ScrollSnap
         }
 
 #if UNITY_EDITOR
-        protected virtual void OnValidate() => ScheduleEditorPreview();
+        protected virtual void OnValidate()
+        {
+            if (target == null) target = GetComponentInParent<ScrollSnap>();
+            ScheduleEditorPreview();
+        }
 
         private void ScheduleEditorPreview()
         {

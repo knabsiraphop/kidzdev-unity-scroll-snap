@@ -11,6 +11,7 @@ namespace KidzDev.Unity.ScrollSnap
 
         private void Start()
         {
+            if (target == null) target = GetComponentInParent<ScrollSnap>();
             if (target == null) return;
             if (prevButton != null) prevButton.onClick.AddListener(target.SnapToPrev);
             if (nextButton != null) nextButton.onClick.AddListener(target.SnapToNext);
